@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+   <script src="https://cdn.plot.ly/plotly-2.30.0.min.js"></script>
+
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            margin: 20px auto;
+            padding: 30px;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        .header h1 {
+            color: #2c3e50;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #7f8c8d;
+            font-size: 1.1em;
+        }
+        .form-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+        }
+        .form-control {
+            border-radius: 10px;
+            border: 2px solid #e9ecef;
+            padding: 12px 15px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+        }
+        .form-control:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+        }
+        .btn-analyze {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            border: none;
+            border-radius: 10px;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            color: white;
+            transition: all 0.3s ease;
+        }
+        .btn-analyze:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+        .spinner-border {
+            color: #667eea;
+        }
+        .results-container {
+            display: none;
+        }
+        .stats-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+        .stats-card:hover {
+            transform: translateY(-5px);
+        }
+        .chart-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        .prediction-card {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+        .metric-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin: 5px;
+            display: inline-block;
+        }
+        .error-alert {
+            display: none;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .nav-tabs {
+            border-bottom: 2px solid #e9ecef;
+        }
+        .nav-tabs .nav-link {
+            border: none;
+            border-radius: 10px 10px 0 0;
+            color: #6c757d;
+            font-weight: 600;
+        }
+        .nav-tabs .nav-link.active {
+            background: #667eea;
+            color: white;
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="main-container">
+                    <!-- Header -->
+                    <div class="header">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h1><i class="fas fa-chart-line"></i> Stock Analyzer</h1>
+                            <div class="d-flex align-items-center">
+                                <span class="me-3 text-muted">Welcome, {{ user.username }}!</span>
+                                <a href="{% url 'stock_analysis:profile' %}" class="btn btn-outline-primary me-2">
+                                    <i class="fas fa-user"></i> Profile
+                                </a>
+                                <a href="{% url 'stock_analysis:logout' %}" class="btn btn-outline-danger">
+                                    <i class="fas fa-sign-out-alt"></i> Logout
+                                </a>
+                            </div>
+                        </div>
+                        <p>Compare and analyze stock performance with machine learning predictions</p>
+                    </div>
+
+                    <!-- Input Form -->
+                    <div class="form-container">
+                        <form id="stockForm">
+                            <div class="row">
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="ticker1" class="form-label">
+                                            <i class="fas fa-chart-bar"></i> First Stock Ticker
+                                        </label>
+                                        <input type="text" class="form-control" id="ticker1" 
+                                               placeholder="e.g., AAPL" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-5">
+                                    <div class="mb-3">
+                                        <label for="ticker2" class="form-label">
+                                            <i class="fas fa-chart-bar"></i> Second Stock Ticker
+                                        </label>
+                                        <input type="text" class="form-control" id="ticker2" 
+                                               placeholder="e.g., GOOGL" required>
+                                    </div>
+                                </div>
+                                <div class="col-md-2">
+                                    <div class="mb-3">
+                                        <label class="form-label">&nbsp;</label>
+                                        <button type="submit" class="btn btn-analyze w-100">
+                                            <i class="fas fa-search"></i> Analyze
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+
+                    <!-- Loading -->
+                    <div class="loading" id="loading">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3">Analyzing stocks and generating predictions...</p>
+                    </div>
+
+                    <!-- Error Alert -->
+                    <div class="alert alert-danger error-alert" id="errorAlert" role="alert">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span id="errorMessage"></span>
+                    </div>
+
+                    <!-- Results Container -->
+                    <div class="results-container" id="resultsContainer">
+                        <!-- Predictions -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="prediction-card" id="prediction1">
+                                    <h5><i class="fas fa-robot"></i> <span id="ticker1Name"></span> Prediction</h5>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <p class="mb-1">Current Price</p>
+                                            <h4 id="currentPrice1">₹0.00</h4>
+                                        </div>
+                                        <div class="col-6">
+                                            <p class="mb-1">Predicted Price</p>
+                                            <h4 id="predictedPrice1">₹0.00</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="prediction-card" id="prediction2">
+                                    <h5><i class="fas fa-robot"></i> <span id="ticker2Name"></span> Prediction</h5>
+                                    <div class="row">
+                                        <div class="col-6">
+                                            <p class="mb-1">Current Price</p>
+                                            <h4 id="currentPrice2">₹0.00</h4>
+                                        </div>
+                                        <div class="col-6">
+                                            <p class="mb-1">Predicted Price</p>
+                                            <h4 id="predictedPrice2">₹0.00</h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Statistics -->
+                        <div class="stats-card">
+                            <h5><i class="fas fa-calculator"></i> Statistical Analysis</h5>
+                            <div class="row" id="statisticsContainer">
+                                <!-- Statistics will be populated here -->
+                            </div>
+                        </div>
+
+                        <!-- Charts -->
+                        <div class="chart-container">
+                            <ul class="nav nav-tabs" id="chartTabs" role="tablist">
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link active" id="line-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#line-chart" type="button" role="tab">
+                                        <i class="fas fa-chart-line"></i> Price Comparison
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="scatter-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#scatter-chart" type="button" role="tab">
+                                        <i class="fas fa-chart-scatter"></i> Scatter Plot
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="histogram-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#histogram-chart" type="button" role="tab">
+                                        <i class="fas fa-chart-bar"></i> Distribution
+                                    </button>
+                                </li>
+                                <li class="nav-item" role="presentation">
+                                    <button class="nav-link" id="correlation-tab" data-bs-toggle="tab" 
+                                            data-bs-target="#correlation-chart" type="button" role="tab">
+                                        <i class="fas fa-chart-pie"></i> Correlation
+                                    </button>
+                                </li>
+                            </ul>
+                            <div class="tab-content" id="chartTabContent">
+                                <div class="tab-pane fade show active" id="line-chart" role="tabpanel">
+                                    <div id="lineChartContainer" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="text-muted">Loading chart...</div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="scatter-chart" role="tabpanel">
+                                    <div id="scatterChartContainer" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="text-muted">Loading chart...</div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="histogram-chart" role="tabpanel">
+                                    <div id="histogramChartContainer" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="text-muted">Loading chart...</div>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="correlation-chart" role="tabpanel">
+                                    <div id="correlationChartContainer" style="min-height: 400px; display: flex; align-items: center; justify-content: center;">
+                                        <div class="text-muted">Loading chart...</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Model Metrics -->
+                        <div class="stats-card">
+                            <h5><i class="fas fa-brain"></i> Model Performance Metrics</h5>
+                            <div class="row" id="metricsContainer">
+                                <!-- Metrics will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.getElementById('stockForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const ticker1 = document.getElementById('ticker1').value.trim().toUpperCase();
+            const ticker2 = document.getElementById('ticker2').value.trim().toUpperCase();
+            
+            if (!ticker1 || !ticker2) {
+                showError('Please enter both ticker symbols');
+                return;
+            }
+            
+            if (ticker1 === ticker2) {
+                showError('Please enter different ticker symbols');
+                return;
+            }
+            
+            analyzeStocks(ticker1, ticker2);
+        });
+
+        function analyzeStocks(ticker1, ticker2) {
+            // Show loading
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('resultsContainer').style.display = 'none';
+            hideError();
+            
+            fetch('/analyze/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    ticker1: ticker1,
+                    ticker2: ticker2
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('loading').style.display = 'none';
+                
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+                
+                displayResults(data, ticker1, ticker2);
+            })
+            .catch(error => {
+                document.getElementById('loading').style.display = 'none';
+                showError('An error occurred while analyzing the stocks');
+                console.error('Error:', error);
+            });
+        }
+
+        function displayResults(data, ticker1, ticker2) {
+            // Update predictions
+            document.getElementById('ticker1Name').textContent = ticker1;
+            document.getElementById('ticker2Name').textContent = ticker2;
+            document.getElementById('currentPrice1').textContent = data.predictions[ticker1].current_price.toFixed(2);
+            document.getElementById('predictedPrice1').textContent = data.predictions[ticker1].predicted_price.toFixed(2);
+            document.getElementById('currentPrice2').textContent = data.predictions[ticker2].current_price.toFixed(2);
+            document.getElementById('predictedPrice2').textContent = data.predictions[ticker2].predicted_price.toFixed(2);
+            
+            // Update statistics
+            displayStatistics(data.statistics, ticker1, ticker2);
+            
+            // Update charts using Plotly JSON data
+            console.log('Updating charts with Plotly JSON...');
+            
+            // Clear containers first
+            document.getElementById('lineChartContainer').innerHTML = '';
+            document.getElementById('scatterChartContainer').innerHTML = '';
+            document.getElementById('histogramChartContainer').innerHTML = '';
+            document.getElementById('correlationChartContainer').innerHTML = '';
+            
+            // Render charts using Plotly
+            if (typeof Plotly !== 'undefined') {
+                try {
+                    // Parse JSON data and render charts
+                    const lineData = JSON.parse(data.charts.line_chart);
+                    const scatterData = JSON.parse(data.charts.scatter_chart);
+                    const histogramData = JSON.parse(data.charts.histogram);
+                    const correlationData = JSON.parse(data.charts.correlation_heatmap);
+                    
+                    Plotly.newPlot('lineChartContainer', lineData.data, lineData.layout);
+                    Plotly.newPlot('scatterChartContainer', scatterData.data, scatterData.layout);
+                    Plotly.newPlot('histogramChartContainer', histogramData.data, histogramData.layout);
+                    Plotly.newPlot('correlationChartContainer', correlationData.data, correlationData.layout);
+                    
+                    console.log('Charts rendered successfully!');
+                } catch (error) {
+                    console.error('Error rendering charts:', error);
+                    // Fallback: show error message
+                    document.getElementById('lineChartContainer').innerHTML = '<div class="alert alert-warning">Chart loading failed. Please try again.</div>';
+                    document.getElementById('scatterChartContainer').innerHTML = '<div class="alert alert-warning">Chart loading failed. Please try again.</div>';
+                    document.getElementById('histogramChartContainer').innerHTML = '<div class="alert alert-warning">Chart loading failed. Please try again.</div>';
+                    document.getElementById('correlationChartContainer').innerHTML = '<div class="alert alert-warning">Chart loading failed. Please try again.</div>';
+                }
+            } else {
+                console.error('Plotly library not loaded!');
+                document.getElementById('lineChartContainer').innerHTML = '<div class="alert alert-danger">Plotly library not loaded. Please refresh the page.</div>';
+            }
+            
+            // Update metrics
+            displayMetrics(data.metrics, ticker1, ticker2);
+            
+            // Show results
+            document.getElementById('resultsContainer').style.display = 'block';
+        }
+
+        function displayStatistics(statistics, ticker1, ticker2) {
+            const container = document.getElementById('statisticsContainer');
+            container.innerHTML = '';
+            
+            const stats = ['count', 'mean', 'median', 'std_deviation', 'min', 'max'];
+            const statNames = {
+                'count': 'Data Points',
+                'mean': 'Mean Price',
+                'median': 'Median Price',
+                'std_deviation': 'Standard Deviation',
+                'min': 'Minimum Price',
+                'max': 'Maximum Price'
+            };
+            
+            stats.forEach(stat => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6 col-lg-4 mb-3';
+                col.innerHTML = `
+                    <div class="card h-100">
+                        <div class="card-body">
+                            <h6 class="card-title">${statNames[stat]}</h6>
+                            <div class="row">
+                                <div class="col-6">
+                                    <small class="text-muted">${ticker1}</small>
+                                    <p class="mb-0 fw-bold">${statistics[stat][ticker1].toFixed(2)}</p>
+                                </div>
+                                <div class="col-6">
+                                    <small class="text-muted">${ticker2}</small>
+                                    <p class="mb-0 fw-bold">${statistics[stat][ticker2].toFixed(2)}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+        }
+
+        function displayMetrics(metrics, ticker1, ticker2) {
+            const container = document.getElementById('metricsContainer');
+            container.innerHTML = '';
+            
+            const metricNames = {
+                'mae': 'Mean Absolute Error',
+                'mse': 'Mean Squared Error',
+                'rmse': 'Root Mean Squared Error',
+                'mape': 'Mean Absolute Percentage Error'
+            };
+            
+            [ticker1, ticker2].forEach(ticker => {
+                const col = document.createElement('div');
+                col.className = 'col-md-6';
+                col.innerHTML = `
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="fas fa-chart-line"></i> ${ticker} Model Metrics</h6>
+                        </div>
+                        <div class="card-body">
+                            ${Object.entries(metrics[ticker]).map(([key, value]) => `
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>${metricNames[key]}:</span>
+                                    <span class="fw-bold">${key === 'mape' ? value.toFixed(2) + '%' : value.toFixed(4)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+                container.appendChild(col);
+            });
+        }
+
+        function showError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('errorAlert').style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('errorAlert').style.display = 'none';
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html> 
